@@ -90,22 +90,34 @@ func (b Board) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 		return b, tea.Quit
 
-	case "tab", "right":
-		if b.colIndex < 3 {
+	case "tab":
+		b.colIndex = (b.colIndex + 1) % 4
+	case "shift+tab":
+		b.colIndex = (b.colIndex + 3) % 4
+	case "right":
+		// move right within row: 0->1, 2->3
+		if b.colIndex%2 == 0 {
 			b.colIndex++
 		}
-	case "shift+tab", "left":
-		if b.colIndex > 0 {
+	case "left":
+		// move left within row: 1->0, 3->2
+		if b.colIndex%2 == 1 {
 			b.colIndex--
 		}
 	case "down":
 		col := b.tasksInColumn(b.colIndex)
 		if b.rowIndex[b.colIndex] < len(col)-1 {
 			b.rowIndex[b.colIndex]++
+		} else if b.colIndex < 2 {
+			// wrap to row below
+			b.colIndex += 2
 		}
 	case "up":
 		if b.rowIndex[b.colIndex] > 0 {
 			b.rowIndex[b.colIndex]--
+		} else if b.colIndex >= 2 {
+			// wrap to row above
+			b.colIndex -= 2
 		}
 
 	case "shift+right":
@@ -336,17 +348,21 @@ func (b Board) View() string {
 		return b.renderHelp()
 	}
 
-	colWidth := b.width / 4
-	if colWidth < 15 {
-		return "Terminal too narrow. Need at least 60 columns."
+	colWidth := b.width / 2
+	colHeight := (b.height - 4) / 2 // leave room for status + hints
+	if colWidth < 20 {
+		return "Terminal too narrow."
 	}
 
-	var cols []string
-	for i := 0; i < 4; i++ {
-		cols = append(cols, b.renderColumn(i, colWidth))
-	}
-
-	board := lipgloss.JoinHorizontal(lipgloss.Top, cols...)
+	topRow := lipgloss.JoinHorizontal(lipgloss.Top,
+		b.renderColumn(0, colWidth, colHeight),
+		b.renderColumn(1, colWidth, colHeight),
+	)
+	bottomRow := lipgloss.JoinHorizontal(lipgloss.Top,
+		b.renderColumn(2, colWidth, colHeight),
+		b.renderColumn(3, colWidth, colHeight),
+	)
+	board := lipgloss.JoinVertical(lipgloss.Left, topRow, bottomRow)
 
 	// input bar
 	var inputBar string
@@ -371,7 +387,7 @@ func (b Board) View() string {
 	return board + inputBar + "\n" + statusBar + "\n" + hints
 }
 
-func (b Board) renderColumn(col int, width int) string {
+func (b Board) renderColumn(col int, width int, height int) string {
 	state := validStates[col]
 	color := stateColors[state]
 	focused := col == b.colIndex
@@ -380,21 +396,27 @@ func (b Board) renderColumn(col int, width int) string {
 	// header
 	title := strings.ToUpper(state)
 	count := len(tasks)
+	if focused {
+		headerStyle = headerStyle.Underline(true)
+	} else {
+		headerStyle = headerStyle.Underline(false)
+	}
 	header := headerStyle.
 		Foreground(color).
 		Width(width).
 		Render(title + " (" + itoa(count) + ")")
 
-	if focused {
-		header = headerStyle.
-			Foreground(color).
-			Width(width).
-			Underline(true).
-			Render(title + " (" + itoa(count) + ")")
+	// find widest project name in this column
+	maxProj := 0
+	for _, t := range tasks {
+		w := len(t.Project) + 2 // brackets
+		if w > maxProj {
+			maxProj = w
+		}
 	}
 
 	// tasks
-	maxTasks := b.height - 5 // leave room for header, status, hints
+	maxTasks := height - 2 // leave room for header
 	if maxTasks < 1 {
 		maxTasks = 1
 	}
@@ -409,15 +431,22 @@ func (b Board) renderColumn(col int, width int) string {
 		}
 
 		proj := "[" + t.Project + "]"
-		desc := truncate(t.Description, width-4)
+		padded := proj + strings.Repeat(" ", maxProj-len(proj))
+		descWidth := width - maxProj - 3 // padding + gap
+		desc := truncate(t.Description, descWidth)
 
 		if focused && i == b.rowIndex[col] {
-			content := proj + " " + desc
-			lines = append(lines, selectedTaskStyle.Foreground(color).Width(width).Render(content))
+			content := padded + " " + desc
+			lines = append(lines, selectedTaskStyle.Foreground(color).Width(width).MaxHeight(1).Render(content))
 		} else {
-			content := projectStyle.Render(proj) + " " + desc
-			lines = append(lines, taskStyle.Width(width).Render(content))
+			content := projectStyle.Render(padded) + " " + desc
+			lines = append(lines, taskStyle.Width(width).MaxHeight(1).Render(content))
 		}
+	}
+
+	// pad to fill height so columns align
+	for len(lines) < height {
+		lines = append(lines, taskStyle.Width(width).Render(""))
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
