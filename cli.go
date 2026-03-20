@@ -11,7 +11,11 @@ import (
 )
 
 func runCLI(args []string) {
-	if len(args) == 0 || args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
+	if len(args) == 0 {
+		cmdOpen()
+		return
+	}
+	if args[0] == "help" || args[0] == "--help" || args[0] == "-h" {
 		cmdHelp()
 		return
 	}
