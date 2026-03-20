@@ -61,6 +61,14 @@ kenban done 3             # shortcut: move task 3 to done
 kenban edit 3             # opens in $EDITOR (default: vi)
 ```
 
+### Copy a task to clipboard
+
+```sh
+kenban copy 3             # copies task 3 text to clipboard
+```
+
+Uses `pbcopy` on macOS, `xclip` or `xsel` on Linux.
+
 ### List projects
 
 ```sh

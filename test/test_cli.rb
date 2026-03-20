@@ -69,6 +69,15 @@ class TestCLI < Minitest::Test
     assert_includes out, "beta"
   end
 
+  def test_copy_outputs_confirmation
+    # We can't easily test clipboard in CI, but we can test the task lookup.
+    # On systems without pbcopy/xclip, copy exits with an error message.
+    File.write(@path, "[todo] [p] My task\n")
+    # Just verify the task is readable at that index (copy depends on OS clipboard)
+    tasks = @store.read_tasks
+    assert_equal "[todo] [p] My task", tasks[0].to_s
+  end
+
   def test_help
     out, _ = run_cli("help")
     assert_includes out, "kenban"

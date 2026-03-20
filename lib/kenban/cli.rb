@@ -9,6 +9,7 @@ module Kenban
       "move"     => :cmd_move,
       "done"     => :cmd_done,
       "edit"     => :cmd_edit,
+      "copy"     => :cmd_copy,
       "projects" => :cmd_projects,
       "help"     => :cmd_help,
     }.freeze
@@ -168,6 +169,29 @@ module Kenban
       puts "Updated: #{new_task}"
     end
 
+    # kenban copy <number>
+    def cmd_copy
+      num_str = @args.first
+      unless num_str
+        $stderr.puts "Usage: kenban copy <task_number>"
+        exit 1
+      end
+
+      index = parse_task_number(num_str)
+      tasks = @store.read_tasks
+      validate_index(index, tasks.size)
+
+      line = tasks[index].to_s
+      clip_cmd = clipboard_command
+      unless clip_cmd
+        $stderr.puts "No clipboard command found. Install xclip or xsel on Linux."
+        exit 1
+      end
+
+      IO.popen(clip_cmd, "w") { |io| io.print(line) }
+      puts "Copied: #{line}"
+    end
+
     # kenban projects
     def cmd_projects
       tasks = @store.read_tasks
@@ -186,6 +210,7 @@ module Kenban
           kenban move <number> <state>         Move a task to a new state
           kenban done <number>                 Shortcut: move task to done
           kenban edit <number>                 Edit a task in $EDITOR
+          kenban copy <number>                 Copy a task to clipboard
           kenban projects                      List all project names
 
         States: #{Task::VALID_STATES.join(', ')}
@@ -196,6 +221,16 @@ module Kenban
         File location:
           ./tasks.txt (if present) or ~/.kenban/tasks.txt
       HELP
+    end
+
+    def clipboard_command
+      if RUBY_PLATFORM =~ /darwin/
+        "pbcopy"
+      elsif system("which xclip > /dev/null 2>&1")
+        "xclip -selection clipboard"
+      elsif system("which xsel > /dev/null 2>&1")
+        "xsel --clipboard --input"
+      end
     end
 
     def parse_task_number(str)
