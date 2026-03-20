@@ -11,7 +11,7 @@ git clone <repo-url> && cd kenban
 make install
 ```
 
-This builds the binary and installs `kenban` (and `kb` shortcut) to `/usr/local/bin`.
+This builds the binary and installs `kenban` (and `kb` shortcut) to `~/.local/bin`. Make sure `~/.local/bin` is in your `PATH`.
 
 ## Usage
 
