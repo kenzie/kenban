@@ -1,4 +1,0 @@
-[todo] [goaliebook] Stripe onboarding @high +payments
-[doing] [kioskbook] Fix auto-reload bug
-[blocked] [teambook] Budget export waiting on schema
-[done] [goaliebook] Initial billing model
