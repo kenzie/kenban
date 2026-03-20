@@ -114,6 +114,8 @@ func (b Board) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 
 	case "enter":
 		b.advanceTask()
+	case "b":
+		b.retreatTask()
 
 	case "a":
 		b.mode = modeAdd
@@ -275,6 +277,25 @@ func (b *Board) advanceTask() {
 	b.moveTask(1)
 }
 
+func (b *Board) retreatTask() {
+	col := b.tasksInColumn(b.colIndex)
+	if len(col) == 0 {
+		return
+	}
+
+	idx := b.globalIndex()
+	if idx < 0 {
+		return
+	}
+
+	si := stateIndex(b.tasks[idx].State)
+	if si <= 0 {
+		return
+	}
+
+	b.moveTask(-1)
+}
+
 func (b Board) tasksInColumn(col int) []Task {
 	state := validStates[col]
 	var result []Task
@@ -357,7 +378,7 @@ func (b Board) View() string {
 	statusBar := statusBarStyle.Render(b.statusMsg)
 
 	// hint bar
-	hints := helpStyle.Render("tab:navigate  enter:advance task  a:add  e:edit  d:delete  q:quit  ?:help")
+	hints := helpStyle.Render("tab:navigate  enter:advance  b:back  a:add  e:edit  d:delete  q:quit  ?:help")
 
 	return board + inputBar + "\n" + statusBar + "\n" + hints
 }
@@ -438,6 +459,7 @@ func (b Board) renderHelp() string {
 
   Actions
     Enter        Advance task (todo→doing→done)
+    b            Move task back one column
     a            Add new task
     e            Edit selected task
     d            Delete selected task
