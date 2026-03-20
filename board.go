@@ -73,6 +73,11 @@ func (b Board) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (b Board) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
+	if b.showHelp {
+		b.showHelp = false
+		return b, nil
+	}
+
 	switch msg.String() {
 	case "q", "ctrl+c":
 		return b, tea.Quit
