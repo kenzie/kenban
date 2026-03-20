@@ -19,7 +19,6 @@ const (
 )
 
 type statusClearMsg struct{}
-type savedMsg struct{}
 
 type Board struct {
 	tasks     []Task
@@ -31,7 +30,6 @@ type Board struct {
 	mode      inputMode
 	textInput textinput.Model
 	statusMsg string
-	dirty     bool
 	showHelp  bool
 }
 
@@ -61,11 +59,6 @@ func (b Board) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		b.statusMsg = ""
 		return b, nil
 
-	case savedMsg:
-		b.statusMsg = "Saved!"
-		b.dirty = false
-		return b, clearStatusAfter(2 * time.Second)
-
 	case tea.KeyMsg:
 		if b.mode == modeAdd || b.mode == modeEdit {
 			return b.updateInput(msg)
@@ -82,12 +75,6 @@ func (b Board) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 func (b Board) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	switch msg.String() {
 	case "q", "ctrl+c":
-		if b.dirty {
-			if err := WriteTasks(b.filePath, b.tasks); err != nil {
-				b.statusMsg = "Error saving: " + err.Error()
-				return b, clearStatusAfter(3 * time.Second)
-			}
-		}
 		return b, tea.Quit
 
 	case "tab":
@@ -120,11 +107,6 @@ func (b Board) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			b.colIndex -= 2
 		}
 
-	case "shift+right":
-		b.moveTask(1)
-	case "shift+left":
-		b.moveTask(-1)
-
 	case "enter":
 		b.advanceTask()
 
@@ -153,9 +135,6 @@ func (b Board) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			b.statusMsg = "Delete this task? (y/n)"
 		}
 
-	case "s", "ctrl+s":
-		return b, b.save()
-
 	case "?":
 		b.showHelp = !b.showHelp
 	}
@@ -176,9 +155,9 @@ func (b Board) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 				return b, clearStatusAfter(3 * time.Second)
 			}
 			b.tasks = append(b.tasks, task)
-			b.dirty = true
 			si := stateIndex(task.State)
 			b.rowIndex[si] = len(b.tasksInColumn(si)) - 1
+			b.saveNow()
 			b.statusMsg = "Added: " + task.String()
 		} else {
 			// edit mode
@@ -193,7 +172,7 @@ func (b Board) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 			if idx >= 0 {
 				parsed.State = b.tasks[idx].State
 				b.tasks[idx] = parsed
-				b.dirty = true
+				b.saveNow()
 				b.statusMsg = "Updated: " + parsed.String()
 			}
 		}
@@ -219,7 +198,7 @@ func (b Board) updateDelete(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		idx := b.globalIndex()
 		if idx >= 0 {
 			b.tasks = append(b.tasks[:idx], b.tasks[idx+1:]...)
-			b.dirty = true
+			b.saveNow()
 			// adjust cursor
 			col := b.tasksInColumn(b.colIndex)
 			if b.rowIndex[b.colIndex] >= len(col) && len(col) > 0 {
@@ -254,7 +233,7 @@ func (b *Board) moveTask(dir int) {
 
 	oldState := b.tasks[idx].State
 	b.tasks[idx].State = validStates[newStateIdx]
-	b.dirty = true
+	b.saveNow()
 
 	// adjust cursor in old column
 	oldCol := b.tasksInColumn(b.colIndex)
@@ -322,14 +301,9 @@ func (b Board) globalIndex() int {
 	return -1
 }
 
-func (b Board) save() tea.Cmd {
-	tasks := b.tasks
-	path := b.filePath
-	return func() tea.Msg {
-		if err := WriteTasks(path, tasks); err != nil {
-			return statusClearMsg{}
-		}
-		return savedMsg{}
+func (b *Board) saveNow() {
+	if err := WriteTasks(b.filePath, b.tasks); err != nil {
+		b.statusMsg = "Error saving: " + err.Error()
 	}
 }
 
@@ -375,14 +349,10 @@ func (b Board) View() string {
 	}
 
 	// status bar
-	status := b.statusMsg
-	if status == "" && b.dirty {
-		status = "● unsaved changes"
-	}
-	statusBar := statusBarStyle.Render(status)
+	statusBar := statusBarStyle.Render(b.statusMsg)
 
 	// hint bar
-	hints := helpStyle.Render("tab/shift+tab:navigate  shift+←/→:move task  enter:advance  a:add  e:edit  d:delete  s:save  q:quit  ?:help")
+	hints := helpStyle.Render("tab:navigate  enter:advance task  a:add  e:edit  d:delete  q:quit  ?:help")
 
 	return board + inputBar + "\n" + statusBar + "\n" + hints
 }
@@ -462,16 +432,13 @@ func (b Board) renderHelp() string {
     ↑ / ↓            Move cursor up/down
 
   Actions
-    Shift+→          Move task to next state
-    Shift+←          Move task to previous state
     Enter        Advance task (todo→doing→done)
     a            Add new task
     e            Edit selected task
     d            Delete selected task
 
   File
-    s / Ctrl+S   Save to file
-    q / Ctrl+C   Save and quit
+    q / Ctrl+C   Quit (all changes saved automatically)
 
   ?              Toggle this help
 
