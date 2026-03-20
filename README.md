@@ -4,32 +4,32 @@ Plain-text personal kanban for solo developers. Trello for one, in a text file.
 
 ## Install
 
+Requires Go 1.26+.
+
 ```sh
 git clone <repo-url> && cd kenban
-chmod +x bin/kenban
-
-# Add to PATH (pick one):
-export PATH="$PWD/bin:$PATH"          # session only
-ln -s "$PWD/bin/kenban" /usr/local/bin/kenban
-ln -s "$PWD/bin/kb" /usr/local/bin/kb  # shortcut
+make install
 ```
 
-Or install as a gem:
-
-```sh
-gem build kenban.gemspec
-gem install kenban-0.1.0.gem
-```
+This builds the binary and installs `kenban` (and `kb` shortcut) to `/usr/local/bin`.
 
 ## Usage
 
 `kb` is an alias for `kenban` — they are interchangeable.
 
+### Interactive board
+
+```sh
+kenban open
+```
+
+Opens a TUI kanban board with a 2x2 grid of columns (todo, doing, blocked, done). Use arrow keys to navigate, Enter to advance a task to the next state.
+
 ### Add a task
 
 ```sh
-kenban add "[goaliebook] Stripe onboarding"
-kenban add "[kioskbook] Fix auto-reload bug @high +payments"
+kenban add "[myproject] Stripe onboarding"
+kenban add "[myproject] Fix auto-reload bug @high +payments"
 ```
 
 Tasks are created in `[todo]` state.
@@ -38,7 +38,7 @@ Tasks are created in `[todo]` state.
 
 ```sh
 kenban list               # all tasks
-kenban list goaliebook    # filter by project
+kenban list myproject     # filter by project
 ```
 
 ### Filter by state
@@ -87,13 +87,13 @@ One task per line in `tasks.txt`:
 - **project**: any name in brackets
 - **description**: free text, may include `@tags` and `+labels`
 
-Example file:
+Example:
 
 ```
-[todo] [goaliebook] Stripe onboarding @high +payments
-[doing] [kioskbook] Fix auto-reload bug
-[blocked] [teambook] Budget export waiting on schema
-[done] [goaliebook] Initial billing model
+[todo] [myproject] Stripe onboarding @high +payments
+[doing] [myproject] Fix auto-reload bug
+[blocked] [myproject] Budget export waiting on schema
+[done] [myproject] Initial billing model
 ```
 
 ## File location
@@ -105,20 +105,10 @@ kenban looks for tasks in this order:
 
 The file and directories are created automatically if they don't exist.
 
-## Running tests
+## Development
 
 ```sh
-ruby -e "Dir.glob('test/test_*.rb').each { |f| require_relative f }"
-# or
-rake test
+make build    # build binary
+make test     # run tests
+make clean    # remove binary
 ```
-
-## Future ideas
-
-- TUI with curses/ratatui-style interface
-- `kenban archive` to move done tasks to an archive file
-- Due dates and priorities
-- Custom states
-- `kenban grep` for full-text search
-- Tab completion for shells
-- Color output
