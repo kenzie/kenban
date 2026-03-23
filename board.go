@@ -256,13 +256,12 @@ func (b *Board) moveTask(dir int) {
 
 	// move focus to new column and select the moved task
 	b.colIndex = newStateIdx
+	newCol := b.tasksInColumn(newStateIdx)
 	row := 0
-	for i, t := range b.tasks {
-		if i == idx {
+	for i, t := range newCol {
+		if t == b.tasks[idx] {
+			row = i
 			break
-		}
-		if t.State == validStates[newStateIdx] {
-			row++
 		}
 	}
 	b.rowIndex[newStateIdx] = row
@@ -361,14 +360,9 @@ func (b Board) globalIndex() int {
 	}
 	target := col[b.rowIndex[b.colIndex]]
 
-	count := 0
 	for i, t := range b.tasks {
-		if t.State == validStates[b.colIndex] {
-			if count == b.rowIndex[b.colIndex] {
-				_ = target
-				return i
-			}
-			count++
+		if t == target {
+			return i
 		}
 	}
 	return -1
