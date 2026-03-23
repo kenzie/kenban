@@ -6,7 +6,7 @@ import (
 	"strings"
 )
 
-var validStates = []string{"todo", "doing", "blocked", "done"}
+var validStates = []string{"todo", "doing", "done"}
 
 var linePattern = regexp.MustCompile(`^\[(\w+)\]\s+\[([^\]]+)\]\s+(.+)$`)
 var addPattern = regexp.MustCompile(`^\[([^\]]+)\]\s+(.+)$`)
@@ -29,13 +29,21 @@ func ParseTask(line string) (Task, error) {
 	}
 
 	state := strings.ToLower(m[1])
-	if !isValidState(state) {
-		return Task{}, fmt.Errorf("unknown state [%s]. Valid states: %s", m[1], strings.Join(validStates, ", "))
-	}
-
 	desc := strings.TrimSpace(m[3])
 	if desc == "" {
 		return Task{}, fmt.Errorf("task description cannot be empty")
+	}
+
+	// migrate old "blocked" state to todo with #blocked tag
+	if state == "blocked" {
+		state = "todo"
+		if !strings.Contains(desc, "#blocked") {
+			desc = desc + " #blocked"
+		}
+	}
+
+	if !isValidState(state) {
+		return Task{}, fmt.Errorf("unknown state [%s]. Valid states: %s", m[1], strings.Join(validStates, ", "))
 	}
 
 	return Task{State: state, Project: m[2], Description: desc}, nil

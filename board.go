@@ -24,7 +24,7 @@ type Board struct {
 	tasks     []Task
 	filePath  string
 	colIndex  int
-	rowIndex  [4]int
+	rowIndex  [3]int
 	width     int
 	height    int
 	mode      inputMode
@@ -82,49 +82,49 @@ func (b Board) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "q", "ctrl+c":
 		return b, tea.Quit
 
-	case "tab":
-		b.colIndex = (b.colIndex + 1) % 4
-	case "shift+tab":
-		b.colIndex = (b.colIndex + 3) % 4
-	case "right":
-		// move right within row: 0->1, 2->3
-		if b.colIndex%2 == 0 {
-			b.colIndex++
-		}
-	case "left":
-		// move left within row: 1->0, 3->2
-		if b.colIndex%2 == 1 {
-			b.colIndex--
-		}
 	case "down":
 		col := b.tasksInColumn(b.colIndex)
 		if b.rowIndex[b.colIndex] < len(col)-1 {
 			b.rowIndex[b.colIndex]++
-		} else if b.colIndex < 2 {
-			// wrap to row below
-			b.colIndex += 2
+		} else {
+			for next := b.colIndex + 1; next < 3; next++ {
+				if len(b.tasksInColumn(next)) > 0 {
+					b.colIndex = next
+					b.rowIndex[next] = 0
+					break
+				}
+			}
 		}
 	case "up":
 		if b.rowIndex[b.colIndex] > 0 {
 			b.rowIndex[b.colIndex]--
-		} else if b.colIndex >= 2 {
-			// wrap to row above
-			b.colIndex -= 2
+		} else {
+			for prev := b.colIndex - 1; prev >= 0; prev-- {
+				col := b.tasksInColumn(prev)
+				if len(col) > 0 {
+					b.colIndex = prev
+					b.rowIndex[prev] = len(col) - 1
+					break
+				}
+			}
 		}
 
-	case "enter":
+	case "right":
 		b.advanceTask()
-	case "b":
+	case "left":
 		b.retreatTask()
 
-	case "a":
+	case "b":
+		b.toggleBlocked()
+
+	case "n":
 		b.mode = modeAdd
 		b.textInput.SetValue("")
 		b.textInput.Placeholder = "[project] description"
 		b.textInput.Focus()
 		return b, b.textInput.Cursor.BlinkCmd()
 
-	case "e":
+	case "enter":
 		col := b.tasksInColumn(b.colIndex)
 		if len(col) == 0 {
 			return b, nil
@@ -135,7 +135,7 @@ func (b Board) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		b.textInput.Focus()
 		return b, b.textInput.Cursor.BlinkCmd()
 
-	case "d":
+	case "x":
 		col := b.tasksInColumn(b.colIndex)
 		if len(col) > 0 {
 			b.mode = modeDelete
@@ -229,7 +229,7 @@ func (b *Board) moveTask(dir int) {
 	}
 
 	newStateIdx := b.colIndex + dir
-	if newStateIdx < 0 || newStateIdx > 3 {
+	if newStateIdx < 0 || newStateIdx > 2 {
 		return
 	}
 
@@ -251,9 +251,17 @@ func (b *Board) moveTask(dir int) {
 	}
 
 	// move focus to new column and select the moved task
-	newCol := b.tasksInColumn(newStateIdx)
 	b.colIndex = newStateIdx
-	b.rowIndex[newStateIdx] = len(newCol) - 1
+	row := 0
+	for i, t := range b.tasks {
+		if i == idx {
+			break
+		}
+		if t.State == validStates[newStateIdx] {
+			row++
+		}
+	}
+	b.rowIndex[newStateIdx] = row
 
 	b.statusMsg = "Moved: [" + oldState + "] → [" + validStates[newStateIdx] + "]"
 }
@@ -270,7 +278,7 @@ func (b *Board) advanceTask() {
 	}
 
 	si := stateIndex(b.tasks[idx].State)
-	if si >= 3 {
+	if si >= 2 {
 		return
 	}
 
@@ -294,6 +302,29 @@ func (b *Board) retreatTask() {
 	}
 
 	b.moveTask(-1)
+}
+
+func (b *Board) toggleBlocked() {
+	col := b.tasksInColumn(b.colIndex)
+	if len(col) == 0 {
+		return
+	}
+
+	idx := b.globalIndex()
+	if idx < 0 {
+		return
+	}
+
+	desc := b.tasks[idx].Description
+	if strings.Contains(desc, "#blocked") {
+		desc = strings.TrimSpace(strings.ReplaceAll(desc, "#blocked", ""))
+		b.tasks[idx].Description = desc
+		b.statusMsg = "Unblocked"
+	} else {
+		b.tasks[idx].Description = desc + " #blocked"
+		b.statusMsg = "Blocked"
+	}
+	b.saveNow()
 }
 
 func (b Board) tasksInColumn(col int) []Task {
@@ -348,39 +379,26 @@ func (b Board) View() string {
 		return b.renderHelp()
 	}
 
-	colWidth := b.width / 2
-	colHeight := (b.height - 4) / 2 // leave room for status + hints
-	if colWidth < 20 {
-		return "Terminal too narrow."
-	}
+	colWidth := b.width
 
-	topRow := lipgloss.JoinHorizontal(lipgloss.Top,
-		b.renderColumn(0, colWidth, colHeight),
-		b.renderColumn(1, colWidth, colHeight),
-	)
-	bottomRow := lipgloss.JoinHorizontal(lipgloss.Top,
-		b.renderColumn(2, colWidth, colHeight),
-		b.renderColumn(3, colWidth, colHeight),
-	)
-	board := lipgloss.JoinVertical(lipgloss.Left, topRow, bottomRow)
-
-	// input bar
-	var inputBar string
-	if b.mode == modeAdd || b.mode == modeEdit {
-		label := "Add"
-		if b.mode == modeEdit {
-			label = "Edit"
+	var sections []string
+	for i := 0; i < 3; i++ {
+		sections = append(sections, b.renderColumn(i, colWidth, 0))
+		if i < 2 {
+			sections = append(sections, "", "")
 		}
-		inputBar = "\n " + label + ": " + b.textInput.View()
+	}
+	board := lipgloss.JoinVertical(lipgloss.Left, sections...)
+
+	// hint/status bar — status temporarily replaces hints
+	var bottomBar string
+	if b.statusMsg != "" {
+		bottomBar = statusBarStyle.Render(b.statusMsg)
+	} else {
+		bottomBar = helpStyle.Render("↑↓:navigate  ←→:move  b:blocked  n:new  enter:edit  x:delete  q:quit  ?:help")
 	}
 
-	// status bar
-	statusBar := statusBarStyle.Render(b.statusMsg)
-
-	// hint bar
-	hints := helpStyle.Render("tab:navigate  enter:advance  b:back  a:add  e:edit  d:delete  q:quit  ?:help")
-
-	return board + inputBar + "\n" + statusBar + "\n" + hints
+	return board + "\n\n\n" + bottomBar
 }
 
 func (b Board) renderColumn(col int, width int, height int) string {
@@ -411,38 +429,44 @@ func (b Board) renderColumn(col int, width int, height int) string {
 		}
 	}
 
-	// tasks
-	maxTasks := height - 2 // leave room for header
-	if maxTasks < 1 {
-		maxTasks = 1
-	}
-
 	var lines []string
 	lines = append(lines, header)
 
 	for i, t := range tasks {
-		if i >= maxTasks {
-			lines = append(lines, taskStyle.Width(width).Faint(true).Render("..."))
-			break
+		// show inline text input for edit mode
+		if focused && i == b.rowIndex[col] && b.mode == modeEdit {
+			lines = append(lines, taskStyle.Width(width).Render(b.textInput.View()))
+			continue
 		}
 
 		proj := "[" + t.Project + "]"
 		padded := proj + strings.Repeat(" ", maxProj-len(proj))
 		descWidth := width - maxProj - 3 // padding + gap
-		desc := truncate(t.Description, descWidth)
+		desc := t.Description
+		blocked := strings.Contains(desc, "#blocked")
+		if blocked {
+			desc = strings.TrimSpace(strings.ReplaceAll(desc, "#blocked", ""))
+		}
+		desc = truncate(desc, descWidth)
 
 		if focused && i == b.rowIndex[col] {
 			content := padded + " " + desc
+			if blocked {
+				content += " " + blockedTagStyle.Render("#blocked")
+			}
 			lines = append(lines, selectedTaskStyle.Foreground(color).Width(width).MaxHeight(1).Render(content))
 		} else {
 			content := projectStyle.Render(padded) + " " + desc
+			if blocked {
+				content += " " + blockedTagStyle.Render("#blocked")
+			}
 			lines = append(lines, taskStyle.Width(width).MaxHeight(1).Render(content))
 		}
 	}
 
-	// pad to fill height so columns align
-	for len(lines) < height {
-		lines = append(lines, taskStyle.Width(width).Render(""))
+	// show inline text input for add mode at end of focused section
+	if focused && b.mode == modeAdd {
+		lines = append(lines, taskStyle.Width(width).Render(b.textInput.View()))
 	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
@@ -453,16 +477,15 @@ func (b Board) renderHelp() string {
   kenban — keyboard shortcuts
 
   Navigation
-    Tab / →          Next column
-    Shift+Tab / ←    Previous column
-    ↑ / ↓            Move cursor up/down
+    ↑ / ↓            Move cursor (traverses all sections)
 
   Actions
-    Enter        Advance task (todo→doing→done)
-    b            Move task back one column
-    a            Add new task
-    e            Edit selected task
-    d            Delete selected task
+    →            Advance task (todo→doing→done)
+    ←            Move task back one column
+    b            Toggle #blocked tag
+    n            Add new task
+    Enter        Edit selected task
+    x            Delete selected task
 
   File
     q / Ctrl+C   Quit (all changes saved automatically)

@@ -3,16 +3,18 @@ package main
 import "github.com/charmbracelet/lipgloss"
 
 var (
-	todoColor    = lipgloss.Color("246") // gray
-	doingColor   = lipgloss.Color("39")  // blue
-	blockedColor = lipgloss.Color("208") // orange
-	doneColor    = lipgloss.Color("34")  // green
+	todoColor  = lipgloss.Color("246") // gray
+	doingColor = lipgloss.Color("39")  // blue
+	doneColor  = lipgloss.Color("34")  // green
+
+	blockedTagStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("208")).
+			Bold(true)
 
 	stateColors = map[string]lipgloss.Color{
-		"todo":    todoColor,
-		"doing":   doingColor,
-		"blocked": blockedColor,
-		"done":    doneColor,
+		"todo":  todoColor,
+		"doing": doingColor,
+		"done":  doneColor,
 	}
 
 	headerStyle = lipgloss.NewStyle().
@@ -31,7 +33,7 @@ var (
 			Faint(true)
 
 	statusBarStyle = lipgloss.NewStyle().
-			Faint(true).
+			Foreground(lipgloss.Color("229")).
 			Padding(0, 1)
 
 	helpStyle = lipgloss.NewStyle().
