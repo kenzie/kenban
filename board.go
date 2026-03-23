@@ -146,6 +146,9 @@ func (b Board) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		b.showHelp = !b.showHelp
 	}
 
+	if b.statusMsg != "" {
+		return b, clearStatusAfter(2 * time.Second)
+	}
 	return b, nil
 }
 
