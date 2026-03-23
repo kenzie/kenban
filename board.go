@@ -1,6 +1,7 @@
 package main
 
 import (
+	"sort"
 	"strings"
 	"time"
 
@@ -338,6 +339,18 @@ func (b Board) tasksInColumn(col int) []Task {
 			result = append(result, t)
 		}
 	}
+	sort.SliceStable(result, func(i, j int) bool {
+		pi, pj := result[i].Project, result[j].Project
+		bi := strings.Contains(result[i].Description, "#blocked")
+		bj := strings.Contains(result[j].Description, "#blocked")
+		if pi != pj {
+			return pi < pj
+		}
+		if bi != bj {
+			return !bi
+		}
+		return false
+	})
 	return result
 }
 
@@ -384,9 +397,18 @@ func (b Board) View() string {
 
 	colWidth := b.width
 
+	// compute widest project name across all tasks
+	maxProj := 0
+	for _, t := range b.tasks {
+		w := len(t.Project) + 2 // brackets
+		if w > maxProj {
+			maxProj = w
+		}
+	}
+
 	var sections []string
 	for i := 0; i < 3; i++ {
-		sections = append(sections, b.renderColumn(i, colWidth, 0))
+		sections = append(sections, b.renderColumn(i, colWidth, 0, maxProj))
 		if i < 2 {
 			sections = append(sections, "", "")
 		}
@@ -404,7 +426,7 @@ func (b Board) View() string {
 	return board + "\n\n\n" + bottomBar
 }
 
-func (b Board) renderColumn(col int, width int, height int) string {
+func (b Board) renderColumn(col int, width int, height int, maxProj int) string {
 	state := validStates[col]
 	color := stateColors[state]
 	focused := col == b.colIndex
@@ -422,15 +444,6 @@ func (b Board) renderColumn(col int, width int, height int) string {
 		Foreground(color).
 		Width(width).
 		Render(title + " (" + itoa(count) + ")")
-
-	// find widest project name in this column
-	maxProj := 0
-	for _, t := range tasks {
-		w := len(t.Project) + 2 // brackets
-		if w > maxProj {
-			maxProj = w
-		}
-	}
 
 	var lines []string
 	lines = append(lines, header)
