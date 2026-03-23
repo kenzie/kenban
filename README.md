@@ -23,7 +23,21 @@ This builds the binary and installs `kenban` (and `kb` shortcut) to `~/.local/bi
 kenban open
 ```
 
-Opens a TUI kanban board with a 2x2 grid of columns (todo, doing, blocked, done). Use arrow keys to navigate, Enter to advance a task to the next state.
+Opens a TUI kanban board with three sections (todo, doing, done) in a single-column layout.
+
+#### Keyboard shortcuts
+
+| Key | Action |
+|-----|--------|
+| ↑ / ↓ | Navigate (traverses all sections) |
+| → | Advance task (todo→doing→done) |
+| ← | Move task back one column |
+| b | Toggle #blocked tag |
+| n | Add new task |
+| Enter | Edit selected task (inline) |
+| x | Delete selected task |
+| q | Quit |
+| ? | Help |
 
 ### Add a task
 
@@ -45,7 +59,7 @@ kenban list myproject     # filter by project
 
 ```sh
 kenban state doing
-kenban state blocked
+kenban state done
 ```
 
 ### Move a task
@@ -83,16 +97,16 @@ One task per line in `tasks.txt`:
 [state] [project] description @tag +label
 ```
 
-- **state**: `todo`, `doing`, `blocked`, `done`
+- **state**: `todo`, `doing`, `done`
 - **project**: any name in brackets
-- **description**: free text, may include `@tags` and `+labels`
+- **description**: free text, may include `@tags`, `+labels`, or `#blocked`
 
 Example:
 
 ```
 [todo] [myproject] Stripe onboarding @high +payments
 [doing] [myproject] Fix auto-reload bug
-[blocked] [myproject] Budget export waiting on schema
+[todo] [myproject] Budget export waiting on schema #blocked
 [done] [myproject] Initial billing model
 ```
 
