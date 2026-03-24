@@ -141,6 +141,10 @@ func cmdMove(args []string) {
 	oldState := tasks[index].State
 	tasks[index].State = newState
 	tasks[index].StampDone()
+	// blocked items moving out of todo get unblocked
+	if newState != "todo" && strings.Contains(tasks[index].Description, "#blocked") {
+		tasks[index].Description = strings.TrimSpace(strings.ReplaceAll(tasks[index].Description, "#blocked", ""))
+	}
 	if err := WriteTasks(path, tasks); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		os.Exit(1)

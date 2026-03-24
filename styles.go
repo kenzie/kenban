@@ -11,6 +11,12 @@ var (
 			Foreground(lipgloss.Color("208")).
 			Bold(true)
 
+	blockedFlashStyle = lipgloss.NewStyle().
+				Padding(0, 1).
+				Bold(true).
+				Background(lipgloss.Color("208")).
+				Foreground(lipgloss.Color("0"))
+
 	stateColors = map[string]lipgloss.Color{
 		"todo":  todoColor,
 		"doing": doingColor,

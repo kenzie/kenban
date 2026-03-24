@@ -20,6 +20,7 @@ const (
 )
 
 type statusClearMsg struct{}
+type flashTickMsg struct{}
 
 type Board struct {
 	tasks     []Task
@@ -34,8 +35,9 @@ type Board struct {
 	showHelp  bool
 
 	// project autocomplete state
-	completions []string // matching project names for current prefix
-	compIndex   int      // index into completions for cycling
+	completions  []string // matching project names for current prefix
+	compIndex    int      // index into completions for cycling
+	flashCount int // remaining flash ticks (odd=on, even=off)
 }
 
 func NewBoard(tasks []Task, path string) Board {
@@ -62,6 +64,17 @@ func (b Board) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	case statusClearMsg:
 		b.statusMsg = ""
+		return b, nil
+
+	case flashTickMsg:
+		if b.flashCount > 0 {
+			b.flashCount--
+			if b.flashCount > 0 {
+				return b, tea.Tick(150*time.Millisecond, func(time.Time) tea.Msg {
+					return flashTickMsg{}
+				})
+			}
+		}
 		return b, nil
 
 	case tea.KeyMsg:
@@ -115,7 +128,9 @@ func (b Board) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		}
 
 	case "right":
-		b.advanceTask()
+		if cmd, handled := b.advanceTask(); handled {
+			return b, cmd
+		}
 	case "left":
 		b.retreatTask()
 
@@ -307,23 +322,31 @@ func (b *Board) moveTask(dir int) {
 	b.statusMsg = "Moved: [" + oldState + "] → [" + validStates[newStateIdx] + "]"
 }
 
-func (b *Board) advanceTask() {
+func (b *Board) advanceTask() (tea.Cmd, bool) {
 	col := b.tasksInColumn(b.colIndex)
 	if len(col) == 0 {
-		return
+		return nil, false
 	}
 
 	idx := b.globalIndex()
 	if idx < 0 {
-		return
+		return nil, false
+	}
+
+	if strings.Contains(b.tasks[idx].Description, "#blocked") {
+		b.flashCount = 5 // 3 on phases, 2 off phases
+		return tea.Tick(150*time.Millisecond, func(time.Time) tea.Msg {
+			return flashTickMsg{}
+		}), true
 	}
 
 	si := stateIndex(b.tasks[idx].State)
 	if si >= 2 {
-		return
+		return nil, false
 	}
 
 	b.moveTask(1)
+	return nil, false
 }
 
 func (b *Board) retreatTask() {
@@ -363,6 +386,13 @@ func (b *Board) toggleBlocked() {
 		b.statusMsg = "Unblocked"
 	} else {
 		b.tasks[idx].Description = desc + " #blocked"
+		// blocked items must live in todo — move back if in doing/done
+		if b.tasks[idx].State != "todo" {
+			b.tasks[idx].State = "todo"
+			b.tasks[idx].StampDone() // clears DoneAt
+			b.colIndex = 0
+			b.rowIndex[0] = len(b.tasksInColumn(0)) // will be at end after save
+		}
 		b.statusMsg = "Blocked"
 	}
 	b.saveNow()
@@ -521,12 +551,16 @@ func (b Board) renderColumn(col int, width int, height int, maxProj int) string 
 		if focused && i == b.rowIndex[col] {
 			content := padded + " " + desc
 			if blocked {
-				content += " " + blockedTagStyle.Render("#blocked")
+				content += " #blocked"
 			}
 			if t.DoneAt != "" {
 				content += " " + t.DoneAt
 			}
-			lines = append(lines, selectedTaskStyle.Foreground(color).Width(width).MaxHeight(1).Render(content))
+			rowStyle := selectedTaskStyle.Foreground(color)
+			if blocked && b.flashCount > 0 && b.flashCount%2 == 1 {
+				rowStyle = blockedFlashStyle
+			}
+			lines = append(lines, rowStyle.Width(width).MaxHeight(1).Render(content))
 		} else {
 			content := projectStyle.Render(padded) + " " + desc
 			if blocked {
