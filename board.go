@@ -32,6 +32,10 @@ type Board struct {
 	textInput textinput.Model
 	statusMsg string
 	showHelp  bool
+
+	// project autocomplete state
+	completions []string // matching project names for current prefix
+	compIndex   int      // index into completions for cycling
 }
 
 func NewBoard(tasks []Task, path string) Board {
@@ -121,8 +125,10 @@ func (b Board) updateNormal(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 	case "n":
 		b.mode = modeAdd
 		b.textInput.SetValue("")
-		b.textInput.Placeholder = "[project] description"
+		b.textInput.Placeholder = "[project] description  (Tab to autocomplete project)"
 		b.textInput.Focus()
+		b.completions = nil
+		b.compIndex = 0
 		return b, b.textInput.Cursor.BlinkCmd()
 
 	case "enter":
@@ -196,7 +202,38 @@ func (b Board) updateInput(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
 		b.textInput.Blur()
 		b.statusMsg = ""
 		return b, nil
+
+	case "tab":
+		val := b.textInput.Value()
+		// Only autocomplete if we're inside the project brackets: "[prefix"
+		if strings.HasPrefix(val, "[") && !strings.Contains(val, "]") {
+			prefix := strings.ToLower(val[1:])
+			// Build completions list if not already cycling
+			if len(b.completions) == 0 {
+				for _, p := range b.projects() {
+					if strings.HasPrefix(strings.ToLower(p), prefix) {
+						b.completions = append(b.completions, p)
+					}
+				}
+				b.compIndex = 0
+			} else {
+				b.compIndex = (b.compIndex + 1) % len(b.completions)
+			}
+			if len(b.completions) > 0 {
+				match := b.completions[b.compIndex]
+				b.textInput.SetValue("[" + match + "] ")
+				b.textInput.CursorEnd()
+				if len(b.completions) > 1 {
+					b.statusMsg = strings.Join(b.completions, "  ")
+				}
+			}
+		}
+		return b, nil
 	}
+
+	// Reset completions when user types anything other than Tab
+	b.completions = nil
+	b.compIndex = 0
 
 	var cmd tea.Cmd
 	b.textInput, cmd = b.textInput.Update(msg)
@@ -372,6 +409,25 @@ func (b *Board) saveNow() {
 	if err := WriteTasks(b.filePath, b.tasks); err != nil {
 		b.statusMsg = "Error saving: " + err.Error()
 	}
+}
+
+// projects returns sorted unique project names from existing tasks.
+func (b Board) projects() []string {
+	seen := make(map[string]string)
+	for _, t := range b.tasks {
+		key := strings.ToLower(t.Project)
+		if _, ok := seen[key]; !ok {
+			seen[key] = t.Project
+		}
+	}
+	var ps []string
+	for _, v := range seen {
+		ps = append(ps, v)
+	}
+	sort.Slice(ps, func(i, j int) bool {
+		return strings.ToLower(ps[i]) < strings.ToLower(ps[j])
+	})
+	return ps
 }
 
 func clearStatusAfter(d time.Duration) tea.Cmd {
