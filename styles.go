@@ -32,6 +32,9 @@ var (
 	projectStyle = lipgloss.NewStyle().
 			Faint(true)
 
+	doneDateStyle = lipgloss.NewStyle().
+			Faint(true)
+
 	statusBarStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("229")).
 			Padding(0, 1)

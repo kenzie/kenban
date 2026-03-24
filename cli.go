@@ -140,6 +140,7 @@ func cmdMove(args []string) {
 
 	oldState := tasks[index].State
 	tasks[index].State = newState
+	tasks[index].StampDone()
 	if err := WriteTasks(path, tasks); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		os.Exit(1)

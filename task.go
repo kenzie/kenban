@@ -4,17 +4,20 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 var validStates = []string{"todo", "doing", "done"}
 
 var linePattern = regexp.MustCompile(`^\[(\w+)\]\s+\[([^\]]+)\]\s+(.+)$`)
 var addPattern = regexp.MustCompile(`^\[([^\]]+)\]\s+(.+)$`)
+var doneTagPattern = regexp.MustCompile(`\s*@done\(\d{4}-\d{2}-\d{2}\)`)
 
 type Task struct {
 	State       string
 	Project     string
 	Description string
+	DoneAt      string // YYYY-MM-DD, set when moved to done
 }
 
 func ParseTask(line string) (Task, error) {
@@ -46,7 +49,14 @@ func ParseTask(line string) (Task, error) {
 		return Task{}, fmt.Errorf("unknown state [%s]. Valid states: %s", m[1], strings.Join(validStates, ", "))
 	}
 
-	return Task{State: state, Project: m[2], Description: desc}, nil
+	// extract @done(date) tag if present
+	var doneAt string
+	if tag := doneTagPattern.FindString(desc); tag != "" {
+		doneAt = tag[strings.Index(tag, "(")+1 : strings.Index(tag, ")")]
+		desc = strings.TrimSpace(doneTagPattern.ReplaceAllString(desc, ""))
+	}
+
+	return Task{State: state, Project: m[2], Description: desc, DoneAt: doneAt}, nil
 }
 
 func ParseAddInput(input string) (Task, error) {
@@ -65,7 +75,11 @@ func ParseAddInput(input string) (Task, error) {
 }
 
 func (t Task) String() string {
-	return fmt.Sprintf("[%s] [%s] %s", t.State, t.Project, t.Description)
+	s := fmt.Sprintf("[%s] [%s] %s", t.State, t.Project, t.Description)
+	if t.DoneAt != "" {
+		s += " @done(" + t.DoneAt + ")"
+	}
+	return s
 }
 
 func (t Task) MatchesProject(name string) bool {
@@ -74,6 +88,15 @@ func (t Task) MatchesProject(name string) bool {
 
 func (t Task) MatchesState(name string) bool {
 	return strings.EqualFold(t.State, name)
+}
+
+// StampDone sets DoneAt to today if moving to done, clears it otherwise.
+func (t *Task) StampDone() {
+	if t.State == "done" && t.DoneAt == "" {
+		t.DoneAt = time.Now().Format("2006-01-02")
+	} else if t.State != "done" {
+		t.DoneAt = ""
+	}
 }
 
 func isValidState(s string) bool {

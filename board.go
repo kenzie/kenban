@@ -281,6 +281,7 @@ func (b *Board) moveTask(dir int) {
 
 	oldState := b.tasks[idx].State
 	b.tasks[idx].State = validStates[newStateIdx]
+	b.tasks[idx].StampDone()
 	b.saveNow()
 
 	// adjust cursor in old column
@@ -522,11 +523,17 @@ func (b Board) renderColumn(col int, width int, height int, maxProj int) string 
 			if blocked {
 				content += " " + blockedTagStyle.Render("#blocked")
 			}
+			if t.DoneAt != "" {
+				content += " " + t.DoneAt
+			}
 			lines = append(lines, selectedTaskStyle.Foreground(color).Width(width).MaxHeight(1).Render(content))
 		} else {
 			content := projectStyle.Render(padded) + " " + desc
 			if blocked {
 				content += " " + blockedTagStyle.Render("#blocked")
+			}
+			if t.DoneAt != "" {
+				content += " " + doneDateStyle.Render(t.DoneAt)
 			}
 			lines = append(lines, taskStyle.Width(width).MaxHeight(1).Render(content))
 		}
