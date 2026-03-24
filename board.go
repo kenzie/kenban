@@ -411,7 +411,9 @@ func (b Board) View() string {
 
 	// hint/status bar — status temporarily replaces hints
 	var bottomBar string
-	if b.statusMsg != "" {
+	if b.mode == modeAdd {
+		bottomBar = b.textInput.View()
+	} else if b.statusMsg != "" {
 		bottomBar = statusBarStyle.Render(b.statusMsg)
 	} else {
 		bottomBar = helpStyle.Render("↑↓:navigate  ←→:move  b:blocked  n:new  enter:edit  x:delete  q:quit  ?:help")
@@ -474,10 +476,6 @@ func (b Board) renderColumn(col int, width int, height int, maxProj int) string 
 		}
 	}
 
-	// show inline text input for add mode at end of focused section
-	if focused && b.mode == modeAdd {
-		lines = append(lines, taskStyle.Width(width).Render(b.textInput.View()))
-	}
 
 	return lipgloss.JoinVertical(lipgloss.Left, lines...)
 }
